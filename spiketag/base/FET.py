@@ -144,11 +144,15 @@ class FET(object):
     def remove(self, group, ids):
         self.fet[group] = np.delete(self.fet[group], ids, axis=0)
 
-    def toclu(self, method='dpgmm', mode='non_blocking', minimum_spks=80, **kwargs):
+    def toclu(self, method='dpgmm', mode='non-blocking', group_id='all', minimum_spks=80, **kwargs):
         self.clustering_mode = mode
-        for i in range(len(self.group)):
-            group_id = self.group[i]
-            self._toclu(method, group_id, mode, minimum_spks, **kwargs)
+        if group_id == 'all':
+            for i in range(len(self.group)):
+                group_id = self.group[i]
+                self._toclu(method=method, group_id=group_id, mode=mode, minimum_spks=minimum_spks, **kwargs)
+        else:
+            self._toclu(method=method, group_id=group_id, mode=mode, minimum_spks=minimum_spks, **kwargs)
+
 
     def _toclu(self, method, group_id, mode, minimum_spks, **kwargs):
         '''
