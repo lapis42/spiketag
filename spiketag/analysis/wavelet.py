@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from scipy import optimize
-from timm.layers import conv2d_same
+from timm.models.layers import conv2d_same
 from scipy.stats import zscore
 import matplotlib.pyplot as plt
 
