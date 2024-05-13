@@ -57,6 +57,9 @@ def _to_fet(_spk_array, _weight_vector, method='weighted-pca', ncomp=6, whiten=F
         temp_fet = temp_fet - np.mean(temp_fet, axis=0)
         fet = temp_fet/(temp_fet.max()-temp_fet.min())
 
+    elif method == 'energy':
+        fet = np.linalg.norm(_spk_array, axis=1)
+
     elif method == 'tsne':
         from sklearn.manifold import TSNE
         tsne = TSNE(n_components=ncomp, random_state=0)
@@ -117,7 +120,7 @@ def _to_fet(_spk_array, _weight_vector, method='weighted-pca', ncomp=6, whiten=F
         fet = temp_fet/(temp_fet.max()-temp_fet.min()) 
 
     else:
-        print('method has to be {peak, pca, weighted-pca, ica, weighted-ica}')
+        print('method has to be {peak, energy, pca, weighted-pca, ica, weighted-ica}')
 
     return fet
 

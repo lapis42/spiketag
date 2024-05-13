@@ -14,13 +14,6 @@ class MainView(QMainWindow,QApplication):
             self._model = model
         self.initUI()
         
-    def closeEvent(self, event):
-        """
-        창이 닫힐 때 호출되는 이벤트 핸들러.
-        애플리케이션을 안전하게 종료합니다.
-        """
-        QApplication.quit()
-
 
     def initUI(self):
         

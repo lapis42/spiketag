@@ -17,10 +17,10 @@ class scatter_3d_view(scene.SceneCanvas):
         self.view.camera = 'turntable'
 
         self._n = 0
-        self._transparency = 0.7
+        self._transparency = 0.5
         self._control_transparency = False
         self._control_picker = False
-        self._size = 5
+        self._size = 4
         self._highlight_color = np.array([1,0,0,1]).astype('float32')
         self.color = np.array([])
         self._cache_mask_ = np.array([])
@@ -259,7 +259,7 @@ class scatter_3d_view(scene.SceneCanvas):
             self._cache_mask_ = np.array([])
 
         if len(mask)>0:
-            # self.color[mask, :] = self._highlight_color
+            self.color[mask, :] = self._highlight_color
             self.color[mask,-1] = 1
             self._cache_mask_ = np.hstack((self._cache_mask_, mask)).astype('int64')
 
