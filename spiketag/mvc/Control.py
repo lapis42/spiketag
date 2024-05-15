@@ -242,8 +242,8 @@ class controller(object):
             group_id = self.current_group
         # idx = self.model.clu[group_id][cluster_id]
         # spk_times = self.model.gtimes[group_id][idx]/float(self.model.mua.fs)
-        idx = self.model.spk.fet.clu[group_id].index[cluster_id]
-        spk_times = self.model.spk.spk_time_dict[group_id][idx]/self.model.mua.fs
+        idx = self.model.fet.clu[group_id].index[cluster_id]
+        spk_times = self.model.spk_time_dict[group_id][idx]/self.model.mua.fs
         return spk_times
 
 
