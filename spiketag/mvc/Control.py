@@ -5,7 +5,7 @@ from tqdm import tqdm
 from ipywidgets import interact
 import matplotlib.pyplot as plt
 from .Model import MainModel
-from ..analysis import spk_time_to_scv 
+from ..analysis import spk_time_to_scv
 from .View import MainView
 from ..base import CLU
 from ..utils import warning, conf, order_label, shift_label
@@ -14,12 +14,11 @@ from ..base.SPK import _transform
 from ..fpga import FPGA
 from ..analysis.place_field import place_field
 from ..view import scatter_3d_view
-from ..utils.conf import info 
-
+from ..utils.conf import info
 
 
 class controller(object):
-    '''
+    """
     First stage:  (channel map in the prb file)
     >> from spiketag.fpga import FPGA
     >> fpga = FPGA(probe=prb)
@@ -43,12 +42,12 @@ class controller(object):
     >> ctrl.build_vq(grp_id, fpga=True)
 
     To download a spike-based stimulation trigger:
-    >> ctrl.fpga.target_unit = 77 # neuron with label 77 generate TTL spike train for optogenetics/other transcient stimulation 
-    '''
-    def __init__(self, view=True, fpga=False, *args, **kwargs):
+    >> ctrl.fpga.target_unit = 77 # neuron with label 77 generate TTL spike train for optogenetics/other transcient stimulation
+    """
 
+    def __init__(self, view=True, fpga=False, *args, **kwargs):
         self.model = MainModel(*args, **kwargs)
-        self.prb   = self.model.probe
+        self.prb = self.model.probe
         self.current_group = 0
 
         # place fields
@@ -59,22 +58,26 @@ class controller(object):
         # vq
         self.transformed_fet = {}
         self.vq = {}
-        self.vq['points'] = {}
-        self.vq['labels'] = {}
-        self.vq['fpga_labels'] = {}
-        self.vq['scores'] = {}
-        self._vq_npts = 500  # size of codebook to download to FPGA, there are many codebooks
+        self.vq["points"] = {}
+        self.vq["labels"] = {}
+        self.vq["fpga_labels"] = {}
+        self.vq["scores"] = {}
+        self._vq_npts = (
+            500  # size of codebook to download to FPGA, there are many codebooks
+        )
 
         if fpga is True:
             # initialize FPGA channel grouping
             # both ch_hash and ch_grpNo are configured
-            # every channel has a `ch_hash` and a `ch_grpNo` 
-            self.fpga = FPGA(probe=self.prb)  # this will automatically download the prb map into the FPGA
+            # every channel has a `ch_hash` and a `ch_grpNo`
+            self.fpga = FPGA(
+                probe=self.prb
+            )  # this will automatically download the prb map into the FPGA
         else:
             self.fpga = None
-            
+
         if view is True:
-            self.view  = MainView(prb=self.prb, model=self.model)
+            self.view = MainView(prb=self.prb, model=self.model)
 
             @self.view.prb.connect
             def on_select(group_id, chs):
@@ -82,11 +85,19 @@ class controller(object):
                 self.current_group = group_id
                 nspks = self.model.gtimes[self.current_group].shape[0]
                 self.view.status_bar.setStyleSheet("color:red")
-                self.view.status_bar.showMessage('loading group {}:{}. It contains {} spikes'.format(group_id, chs, nspks))
+                self.view.status_bar.showMessage(
+                    "loading group {}:{}. It contains {} spikes".format(
+                        group_id, chs, nspks
+                    )
+                )
                 self.show(group_id)
                 self.view.status_bar.setStyleSheet("color:black")
-                self.view.status_bar.showMessage('group {}:{} are loaded. It contains {} spikes'.format(group_id, chs, nspks))
-                self.view.setWindowTitle("Spiketag: {} units".format(self.unit_done)) 
+                self.view.status_bar.showMessage(
+                    "group {}:{} are loaded. It contains {} spikes".format(
+                        group_id, chs, nspks
+                    )
+                )
+                self.view.setWindowTitle("Spiketag: {} units".format(self.unit_done))
 
             @self.view.clu_view.clu_manager.connect
             def on_vq2fpga():
@@ -102,9 +113,14 @@ class controller(object):
 
             @self.view.spkview.event.connect
             def on_show(content):
-                if content == 'ephys_full':
+                if content == "ephys_full":
                     if self.clu.selectlist.shape[0] == 1:
-                        _time = self.model.gtimes[self.current_group][self.clu.selectlist[0]]/self.prb.fs
+                        _time = (
+                            self.model.gtimes[self.current_group][
+                                self.clu.selectlist[0]
+                            ]
+                            / self.prb.fs
+                        )
                         _span = 0.1
                         self.model.mua.show(self.prb.chs, span=_span, time=_time)
                         # _highlight_point = int(_span*self.prb.fs)
@@ -112,10 +128,9 @@ class controller(object):
                         # _cluNo = self.clu.membership[self.clu.selectlist][0]
                         # _highlight_color = np.array(self.view.spkview.palette[_cluNo])
                         # _highlight_color = np.append(_highlight_color, 1)
-                        # self.model.mua.wview.highlight(chs=self.prb[self.current_group], 
+                        # self.model.mua.wview.highlight(chs=self.prb[self.current_group],
                         #                                timelist=[[_highlight_point-10, _highlight_point+15]],
                         #                                colorlist=_highlight_color, mask_others=True)
-
 
             @self.view.spkview.event.connect
             def on_magnet(sink_id, source_id, k):
@@ -125,11 +140,11 @@ class controller(object):
             @self.view.spkview.event.connect
             def on_trim(source_id, k):
                 self.trim(source_id, k)
-                
+
             @self.view.spkview.event.connect
             def on_dismiss(source_id):
                 self.dismiss(source_id)
-            
+
             @self.view.spkview.event.connect
             def on_build_vq():
                 self.build_vq()
@@ -141,7 +156,7 @@ class controller(object):
             @self.view.spkview.event.connect
             def on_clip(idx):
                 idx = np.array(idx)
-                print('delete {} spikes'.format(idx.shape))
+                print("delete {} spikes".format(idx.shape))
                 self.delete_spk(spk_idx=idx)
                 self.update_view()
 
@@ -159,21 +174,40 @@ class controller(object):
 
             @self.view.ampview.event.connect
             def on_clip(thres):
-                idx = np.where(self.model.spk[self.current_group][:,8,:].min(axis=1)>thres)[0]
-                print('delete {} spikes'.format(idx.shape))
+                idx = np.where(
+                    self.model.spk[self.current_group][:, 8, :].min(axis=1) > thres
+                )[0]
+                print("delete {} spikes".format(idx.shape))
                 self.delete_spk(spk_idx=idx)
 
             @self.view.traceview.event.connect
             def on_view_trace():
-                if self.current_group>min(self.prb.grp_dict.keys()) and self.current_group<max(self.prb.grp_dict.keys()):
-                    vchs = np.hstack((self.prb[self.current_group-1], self.prb[self.current_group], self.prb[self.current_group+1]))
+                if self.current_group > min(
+                    self.prb.grp_dict.keys()
+                ) and self.current_group < max(self.prb.grp_dict.keys()):
+                    vchs = np.hstack(
+                        (
+                            self.prb[self.current_group - 1],
+                            self.prb[self.current_group],
+                            self.prb[self.current_group + 1],
+                        )
+                    )
                 elif self.current_group == min(self.prb.grp_dict.keys()):
-                    vchs = np.hstack((self.prb[self.current_group], self.prb[self.current_group+1]))
+                    vchs = np.hstack(
+                        (self.prb[self.current_group], self.prb[self.current_group + 1])
+                    )
                 elif self.current_group == max(self.prb.grp_dict.keys()):
-                    vchs = np.hstack((self.prb[self.current_group-1], self.prb[self.current_group]))
+                    vchs = np.hstack(
+                        (self.prb[self.current_group - 1], self.prb[self.current_group])
+                    )
                 if len(self.view.spkview.selected_spk) == 1:
-                    current_time = self.model.mua.spk_times[self.current_group][self.view.spkview.selected_spk]/self.model.mua.fs
-                    self.model.mua.show(time = current_time, chs=self.prb.chs, span=0.1)
+                    current_time = (
+                        self.model.mua.spk_times[self.current_group][
+                            self.view.spkview.selected_spk
+                        ]
+                        / self.model.mua.fs
+                    )
+                    self.model.mua.show(time=current_time, chs=self.prb.chs, span=0.1)
 
     @property
     def current_group(self):
@@ -188,23 +222,25 @@ class controller(object):
     def n_group(self):
         return len(self.prb.grp_dict.keys())
 
-
     @property
     def spk(self):
-        return self.model.spk[self.current_group]   # spk ndarray
+        return self.model.spk[self.current_group]  # spk ndarray
 
     @property
     def spk_spurious_score(self):
-        return np.mean(self.model.spk[self.current_group].max(axis=-1) - 
-                       self.model.spk[self.current_group].min(axis=-1), axis=1) / (2**13)
+        return np.mean(
+            self.model.spk[self.current_group].max(axis=-1)
+            - self.model.spk[self.current_group].min(axis=-1),
+            axis=1,
+        ) / (2**13)
 
     @property
     def fet(self):
-        return self.model.fet[self.current_group]   # fet ndarray
+        return self.model.fet[self.current_group]  # fet ndarray
 
     @property
     def clu(self):
-        return self.model.clu[self.current_group]   # CLU
+        return self.model.clu[self.current_group]  # CLU
 
     @property
     def nclu(self):
@@ -212,8 +248,8 @@ class controller(object):
 
     @property
     def group_done(self):
-        self._group_done = np.where(np.array(self.model.clu_manager.state_list)==3)[0]
-        print('{} groups done'.format(self._group_done.shape[0]))
+        self._group_done = np.where(np.array(self.model.clu_manager.state_list) == 3)[0]
+        print("{} groups done".format(self._group_done.shape[0]))
         return self._group_done
 
     @property
@@ -222,30 +258,38 @@ class controller(object):
 
     @property
     def unit_ready(self):
-        nclus = self.model.fet.nclus - 1 # exclude the zero cluster (noisy)
+        nclus = self.model.fet.nclus - 1  # exclude the zero cluster (noisy)
         return nclus.sum()
 
     @property
     def selected_spk_times(self):
-        return self.model.gtimes[self.current_group][self.clu.selectlist]/self.model.mua.fs
+        return (
+            self.model.gtimes[self.current_group][self.clu.selectlist]
+            / self.model.mua.fs
+        )
 
     @property
     def selected_mua_around_spk_time(self, span=20):
-        '''
+        """
         select one spike, and return the mua around that spike time, span is in #pts
-        '''
-        muadata = self.model.mua.bf.data[int(self.selected_spk_times*25000)-span:int(self.selected_spk_times*25000)+span, :]
+        """
+        muadata = self.model.mua.bf.data[
+            int(self.selected_spk_times * 25000) - span : int(
+                self.selected_spk_times * 25000
+            )
+            + span,
+            :,
+        ]
         return muadata
 
     def get_spk_times(self, group_id=-1, cluster_id=1):
-        if group_id==-1:
+        if group_id == -1:
             group_id = self.current_group
         # idx = self.model.clu[group_id][cluster_id]
         # spk_times = self.model.gtimes[group_id][idx]/float(self.model.mua.fs)
-        idx = self.model.fet.clu[group_id].index[cluster_id]
-        spk_times = self.model.spk_time_dict[group_id][idx]/self.model.mua.fs
+        idx = self.model.spk.fet.clu[group_id].index[cluster_id]
+        spk_times = self.model.spk.spk_time_dict[group_id][idx] / self.model.mua.fs
         return spk_times
-
 
     @property
     def spk_time(self):
@@ -255,22 +299,22 @@ class controller(object):
             self._spk_time[i] = self.get_spk_times(cluster_id=i)
         return self._spk_time
 
-
     @property
     def spk_times_all(self):
         self._spk_time_all = {}
         self._nclu_all = {}
         for grp_id in range(self.prb.n_group):
-            if self.model.clu_manager.state_list[grp_id]==3:
+            if self.model.clu_manager.state_list[grp_id] == 3:
                 _spk_times = {}
                 cluNo = self.model.clu[grp_id].index.keys()
                 for i in cluNo:
-                    if i>0:  # first one is noise
-                        _spk_times[i-1] = self.get_spk_times(grp_id, cluster_id=i)  # start from 0
+                    if i > 0:  # first one is noise
+                        _spk_times[i - 1] = self.get_spk_times(
+                            grp_id, cluster_id=i
+                        )  # start from 0
                 self._spk_time_all[grp_id] = _spk_times
-                self._nclu_all[grp_id] = len(cluNo) - 1 # first one is noise
+                self._nclu_all[grp_id] = len(cluNo) - 1  # first one is noise
         return self._spk_time_all, self._nclu_all
-
 
     @property
     def spk_times_all_in_one(self):
@@ -295,107 +339,128 @@ class controller(object):
 
     def delete_spk(self, spk_idx):
         i = self.current_group
-        self.model.mua.spk_times[i] = np.delete(self.model.mua.spk_times[i], spk_idx, axis=0)
-        self.model.spk.spk_time_dict[i] = np.delete(self.model.spk.spk_time_dict[i], spk_idx, axis=0)
+        self.model.mua.spk_times[i] = np.delete(
+            self.model.mua.spk_times[i], spk_idx, axis=0
+        )
+        self.model.spk.spk_time_dict[i] = np.delete(
+            self.model.spk.spk_time_dict[i], spk_idx, axis=0
+        )
         self.model.spk[i] = np.delete(self.model.spk[i], spk_idx, axis=0)
-        self.model.fet[i] = self.model.spk.tofet(i, method=self.model.fet_method, ncomp=self.model._fetlen)
+        self.model.fet[i] = self.model.spk.tofet(
+            i, method=self.model.fet_method, ncomp=self.model._fetlen
+        )
         self.model.clu[i].delete(spk_idx)
-        self.view.prb_view.select(i) 
-        
+        self.view.prb_view.select(i)
 
     def recluster(self, method, **params):
         group_id = self.current_group
         self.model.cluster(group_id, method, **params)
 
     def gmm_cluster(self, N=None):
-        '''
+        """
         before running this, make sure the first cluster is noise, and the rest clusters are correctly positioned
-        '''
+        """
         from sklearn.mixture import GaussianMixture as GMM
+
         if N is None:
             N = self.clu.nclu - 1
             means_init = []
             for i in range(N):
-                means_init.append(self.fet[self.clu[i+1]].mean(axis=0))
+                means_init.append(self.fet[self.clu[i + 1]].mean(axis=0))
             means_init = np.vstack(means_init)
-            gmm = GMM(n_components=N, covariance_type='full', means_init=means_init)
+            gmm = GMM(n_components=N, covariance_type="full", means_init=means_init)
         else:
-            gmm = GMM(n_components=N, covariance_type='full')
+            gmm = GMM(n_components=N, covariance_type="full")
         gmm.fit(self.fet)
         label = gmm.predict(self.fet)
         self.clu.membership = label
         self.clu.__construct__()
-        self.clu.emit('cluster')
+        self.clu.emit("cluster")
         return gmm
 
-
-    def dpgmm_cluster(self, max_n_clusters = 30, max_iter=300, verbose=False):
+    def dpgmm_cluster(self, max_n_clusters=30, max_iter=300, verbose=False):
         from sklearn.mixture import BayesianGaussianMixture as DPGMM
+
         dpgmm = DPGMM(
-            n_components=max_n_clusters, covariance_type='full', weight_concentration_prior=1e-3,
-            weight_concentration_prior_type='dirichlet_process', init_params="kmeans",
-            max_iter=max_iter, random_state=0, verbose=verbose, verbose_interval=10) # init can be "kmeans" or "random"
+            n_components=max_n_clusters,
+            covariance_type="full",
+            weight_concentration_prior=1e-3,
+            weight_concentration_prior_type="dirichlet_process",
+            init_params="kmeans",
+            max_iter=max_iter,
+            random_state=0,
+            verbose=verbose,
+            verbose_interval=10,
+        )  # init can be "kmeans" or "random"
         dpgmm.fit(self.fet)
         label = dpgmm.predict(self.fet)
         self.clu.membership = label
         self.clu.__construct__()
-        self.clu.emit('cluster')
-        return dpgmm                
+        self.clu.emit("cluster")
+        return dpgmm
 
     def kmm_cluster(self, N=100):
         from sklearn.cluster import MiniBatchKMeans
+
         kmm = MiniBatchKMeans(N)
         kmm.fit(self.fet)
         label = kmm.predict(self.fet)
         self.clu.membership = label
         self.clu.__construct__()
-        self.clu.emit('cluster')
-        return kmm    
+        self.clu.emit("cluster")
+        return kmm
 
     def update_view(self):
         i = self.current_group
-        self.view.set_data(i, self.model.mua, self.model.spk[i], self.model.fet[i], self.model.clu[i])
-        self.view.setWindowTitle("Spiketag: {} units".format(self.unit_done)) 
+        self.view.set_data(
+            i, self.model.mua, self.model.spk[i], self.model.fet[i], self.model.clu[i]
+        )
+        self.view.setWindowTitle("Spiketag: {} units".format(self.unit_done))
 
-    def sort(self, clu_method='hdbscan'):
-        if clu_method == 'bg_cluster':
-            self.model.sort(clu_method='reset')
+    def sort(self, clu_method="hdbscan"):
+        if clu_method == "bg_cluster":
+            self.model.sort(clu_method="reset")
             self.run_bg_clustering()
         else:
-            self.model.sort(clu_method=clu_method)   
+            self.model.sort(clu_method=clu_method)
 
-    def clusterless_sort(self, method='dpgmm', N=20, minimum_spks=3000):
-        '''
+    def clusterless_sort(self, method="dpgmm", N=20, minimum_spks=3000):
+        """
         method = 'dpgmm' or 'kmeans'
-        '''
+        """
         self.clusterless_sort_method = method
-        self.model.fet.toclu(method=method,
-                             mode='blocking',
-                             minimum_spks=minimum_spks,
-                             n_comp=N)
+        self.model.fet.toclu(
+            method=method, mode="blocking", minimum_spks=minimum_spks, n_comp=N
+        )
 
     def show(self, group_id=None):
         if group_id is None:
             self.update_view()
             self.view.show()
         else:
-            self.view.set_data(group_id, self.model.mua, self.model.spk[group_id], self.model.fet[group_id], self.model.clu[group_id])
+            self.view.set_data(
+                group_id,
+                self.model.mua,
+                self.model.spk[group_id],
+                self.model.fet[group_id],
+                self.model.clu[group_id],
+            )
             self.view.show()
 
     def save(self, filename=None, including_noise=True):
-        '''
+        """
         update spktag object in the model
         and save all files including sorted result and fpga pamrameters
-        '''
+        """
         if filename is None:
-            os.makedirs('./spktag', exist_ok=True)
-            filename = './spktag/' + self.clusterless_sort_method + '_sort'
+            os.makedirs("./spktag", exist_ok=True)
+            filename = "./spktag/" + self.clusterless_sort_method + "_sort"
         else:
-            os.makedirs('./spktag', exist_ok=True)
-            filename = './spktag/' + filename
+            os.makedirs("./spktag", exist_ok=True)
+            filename = "./spktag/" + filename
         self.model.update_spktag()
         self.model.tofile(filename, including_noise)
-        self.fpga.save(filename+'.param')
+        self.fpga.save(filename + ".param")
 
     #####################################
     ####  plot useful information  ######
@@ -405,8 +470,14 @@ class controller(object):
         @interact(i=(0, 39, 1))
         def show_low_spike_energy(i=0):
             fig, ax = plt.subplots(1, 1, figsize=(10, 5))
-            ax.plot(self.model.spk.spk_time_dict[i]/self.model.mua.fs, self.model.spk.spike_energy[i], ',', c='k', alpha=0.5);
-            ax.set_ylim([0,0.7]);
+            ax.plot(
+                self.model.spk.spk_time_dict[i] / self.model.mua.fs,
+                self.model.spk.spike_energy[i],
+                ",",
+                c="k",
+                alpha=0.5,
+            )
+            ax.set_ylim([0, 0.7])
             plt.show()
 
     #####################################
@@ -423,33 +494,40 @@ class controller(object):
         group_id = self.current_group
         for i in range(self.model.spk[group_id].shape[0]):
             current_pts = self.model.mua.spk_times[group_id][i]
-            noise_leve.append(self.model.mua.data[current_pts, self.prb.chs].mean()/self.model.mua.data[current_pts, self.prb[group_id]].mean())
+            noise_leve.append(
+                self.model.mua.data[current_pts, self.prb.chs].mean()
+                / self.model.mua.data[current_pts, self.prb[group_id]].mean()
+            )
         noise_leve = np.array(noise_leve)
-        idx = np.where(abs(noise_leve)>thres)[0]
+        idx = np.where(abs(noise_leve) > thres)[0]
         self.clu.select(idx)
 
     def refine(self, method, args):
         # method is time_threshold, used to find burst
         # args here is the time_threshold for bursting or a sequential firing for single neuron
-        time_thr = args*self.prb.fs
+        time_thr = args * self.prb.fs
         # print time_thr
-        sequence = np.where(np.diff(self.model.gtimes[self.current_group][np.unique(self.clu.selectlist)])<time_thr)[0]
-        idx_tosel = np.hstack((sequence, sequence-1)) + 1
+        sequence = np.where(
+            np.diff(
+                self.model.gtimes[self.current_group][np.unique(self.clu.selectlist)]
+            )
+            < time_thr
+        )[0]
+        idx_tosel = np.hstack((sequence, sequence - 1)) + 1
         spk_tosel = np.unique(self.clu.selectlist)[idx_tosel]
         self.clu.select(spk_tosel)
 
-
     def transfer(self, sink_clu_id, source_clu_id, k=1):
-        '''
+        """
         transfer source to sink the N*sink.shape[0] NN pts
-        '''
+        """
         # if source_clu_id == sink_clu_id:
         #     source_clu_id = 0
         source = self.fet[self.clu[source_clu_id]]
-        sink   = self.fet[self.clu[sink_clu_id]]
+        sink = self.fet[self.clu[sink_clu_id]]
         KT = KDTree(source)
         nn_ids = KT.query(sink, k, dualtree=True)[1].ravel()
-        global_nn_ids = self.clu.local2global({source_clu_id:nn_ids})
+        global_nn_ids = self.clu.local2global({source_clu_id: nn_ids})
         collective_ids = np.hstack((global_nn_ids, self.clu[sink_clu_id]))
         self.clu.select(collective_ids)
         # sink = np.append(sink, source[nn_ids], axis=0)
@@ -458,15 +536,21 @@ class controller(object):
         # self.model.fet[self.current_group]
 
     def trim(self, source_clu_id, k):
-        '''
+        """
         trim a source cluster
-        '''
-        pts = k*30
+        """
+        pts = k * 30
         source = self.fet[self.clu[source_clu_id]]
         KT = KDTree(source)
-        dis, _ = KT.query(source, 10, dualtree=True) # use 10 pts to calculate average distance
-        distance = dis[:, 1:].mean(axis=1) # the first column is the distance to each point itself, which is 0
-        low_density_idx = self.clu.local2global({source_clu_id:np.argsort(distance)[::-1][:pts]})
+        dis, _ = KT.query(
+            source, 10, dualtree=True
+        )  # use 10 pts to calculate average distance
+        distance = dis[:, 1:].mean(
+            axis=1
+        )  # the first column is the distance to each point itself, which is 0
+        low_density_idx = self.clu.local2global(
+            {source_clu_id: np.argsort(distance)[::-1][:pts]}
+        )
         self.clu.select(low_density_idx)
 
     # cluNo is a noisy cluster, usually 0, assign it's member to other clusters
@@ -478,14 +562,15 @@ class controller(object):
         # get the features of targeted cluNo
         #  X = self.fet[self.clu[cluNo]]
         # classification on these features
-            lables_X = self.model.predict(self.current_group, self.clu[cluNo], method='knn', k=15)
+        lables_X = self.model.predict(
+            self.current_group, self.clu[cluNo], method="knn", k=15
+        )
         # reconstruct current cluster membership
-            self.clu.membership[self.clu[cluNo]] = lables_X
-            if self.clu.membership.min()>0:
-                self.clu.membership -= 1
-            self.clu.__construct__()
-            self.update_view()
-
+        self.clu.membership[self.clu[cluNo]] = lables_X
+        if self.clu.membership.min() > 0:
+            self.clu.membership -= 1
+        self.clu.__construct__()
+        self.update_view()
 
     def get_fields(self, group_id=-1, kernlen=21, std=3):
         if group_id == -1:
@@ -496,40 +581,50 @@ class controller(object):
         self.model.pc.get_fields(self.spk_times, kernlen, std)
         self.fields[group_id] = self.model.pc.fields
 
-
     def plot_fields(self, N=4, size=3):
         self.model.pc.plot_fields(N, size)
 
-
     def field_reorder(self, group_id=-1, thres=1):
-        '''
+        """
         1. merge clusters based on its spatial information (bits), merge if lower than thres bits
         2. reorder clusters according to spatial bits
-        '''
+        """
         if group_id == -1:
             group_id = self.current_group
         self.model.pc.get_fields(self.spk_time)
-        self.model.pc.rank_fields('spatial_bit_smoothed_spike')
+        self.model.pc.rank_fields("spatial_bit_smoothed_spike")
         # 1. merge low bits clusters
-        low_spatial_clus = np.where(self.model.pc.metric['spatial_bit_smoothed_spike']<thres)[0]
+        low_spatial_clus = np.where(
+            self.model.pc.metric["spatial_bit_smoothed_spike"] < thres
+        )[0]
         self.clu.merge(low_spatial_clus)
         # 2. reorder clusters according to bits (0: lowest noise, 1: highest, 2: second highest ... )
         self.model.pc.get_fields(self.spk_time)
-        self.model.pc.rank_fields('spatial_bit_smoothed_spike')        
-        sorted_idx = np.roll(self.model.pc.sorted_fields_id, 1) # put noise first as grey cluster
+        self.model.pc.rank_fields("spatial_bit_smoothed_spike")
+        sorted_idx = np.roll(
+            self.model.pc.sorted_fields_id, 1
+        )  # put noise first as grey cluster
         self.clu.reorder(sorted_idx)
 
-
-    def replay(self, maze_folder, neuron_id, replay_speed=10, replay_start_time=0., mirror=True, spk_time=None):
+    def replay(
+        self,
+        maze_folder,
+        neuron_id,
+        replay_speed=10,
+        replay_start_time=0.0,
+        mirror=True,
+        spk_time=None,
+    ):
         from playground.view import maze_view
+
         self.nav_view = maze_view()
-        self.nav_view.load_maze(maze_folder+'maze_2d.obj',
-                                maze_folder+'maze_2d.coords',
-                                mirror=mirror)
+        self.nav_view.load_maze(
+            maze_folder + "maze_2d.obj", maze_folder + "maze_2d.coords", mirror=mirror
+        )
 
         t, pos = self.model.ts.copy(), self.model.pos.copy()
         if mirror:
-            pos[:,1] = -pos[:,1]
+            pos[:, 1] = -pos[:, 1]
         pos = self.nav_view._to_jovian_coord(pos).astype(np.float32)
 
         self.nav_view.replay_t = t
@@ -543,47 +638,57 @@ class controller(object):
         self.nav_view.replay_speed = replay_speed
         self.nav_view.replay_time = replay_start_time
 
-        self.nav_view.view.camera.azimuth = 0.
-        self.nav_view.view.camera.elevation = -90.
+        self.nav_view.view.camera.azimuth = 0.0
+        self.nav_view.view.camera.elevation = -90.0
         self.nav_view.show()
-
 
     ##### FPGA related #####
     def set_threshold(self, beta=4.0):
         self.fpga.thres[:] = self.model.mua.get_threshold(beta)
         for ch in self.prb.mask_chs:
-            self.fpga.thres[ch] = -5000. 
+            self.fpga.thres[ch] = -5000.0
         for ch in self.prb.bad_chs:
-            self.fpga.thres[ch] = -5000.
+            self.fpga.thres[ch] = -5000.0
 
     def _transform(self, x, P, shift, scale):
-        return _transform(x, P, shift, scale) 
+        return _transform(x, P, shift, scale)
 
     def construct_transformer(self, group_id, ndim=4):
         _pca_comp, _shift, _scale, y = self.model.construct_transformer(group_id, ndim)
         return _pca_comp, _shift, _scale, y
 
     def set_transformer(self, group_id, random=False):
-        _pca_comp, _shift, _scale, y = self.construct_transformer(group_id=group_id, ndim=4)
-        self.fpga._config_FPGA_transformer(grpNo=group_id, P=_pca_comp, b=_shift, a=_scale) 
+        _pca_comp, _shift, _scale, y = self.construct_transformer(
+            group_id=group_id, ndim=4
+        )
+        self.fpga._config_FPGA_transformer(
+            grpNo=group_id, P=_pca_comp, b=_shift, a=_scale
+        )
         self.transformed_fet[group_id] = y
         # assert(np.allclose(self.fpga.pca[i], _pca_comp, atol=1e-3))
         # assert(np.allclose(self.fpga.shift[i], _shift,  atol=1e-3))
         # assert(np.allclose(self.fpga.scale[i], _scale,  atol=1e-3))
-            
+
     def check_transformer(self, group_id):
         _spk = self.model.spk[group_id].T.reshape(76, -1).T
-        _fet = self._transform(_spk, self.fpga.pca[group_id], 
-                                     self.fpga.shift[group_id], 
-                                     self.fpga.scale[group_id])
+        _fet = self._transform(
+            _spk,
+            self.fpga.pca[group_id],
+            self.fpga.shift[group_id],
+            self.fpga.scale[group_id],
+        )
         from spiketag.view import scatter_3d_view
+
         _fetview = scatter_3d_view()
         _fetview.set_data(_fet)
         _fetview.show()
 
-    def build_vq(self, grp_id=None, n_dim=4, n_vq=None, show=True, method='proportional'):
+    def build_vq(
+        self, grp_id=None, n_dim=4, n_vq=None, show=True, method="proportional"
+    ):
         import warnings
-        warnings.filterwarnings('ignore')
+
+        warnings.filterwarnings("ignore")
         # get the vq and vq labels
         from sklearn.cluster import MiniBatchKMeans
 
@@ -592,47 +697,56 @@ class controller(object):
 
         vq = []
         if n_vq is None:
-            if method == 'proportional':
-                avg_nvq = 500/self.model.clu[grp_id].nclu
-                n_vq = np.array([int(npts) if npts<avg_nvq else int(avg_nvq) for npts in self.model.clu[grp_id].nspks_per_clu])
+            if method == "proportional":
+                avg_nvq = 500 / self.model.clu[grp_id].nclu
+                n_vq = np.array(
+                    [
+                        int(npts) if npts < avg_nvq else int(avg_nvq)
+                        for npts in self.model.clu[grp_id].nspks_per_clu
+                    ]
+                )
                 # n_vq += np.round((500-np.array(n_vq).sum()) * ((self.model.clu[grp_id].nspks_per_clu / np.array(n_vq)) - 1) / ((self.model.clu[grp_id].nspks_per_clu / np.array(n_vq)) - 1).sum())
                 n_vq = n_vq.astype(np.int)
-            elif method == 'equal':
-                k = int(self._vq_npts/self.model.clu[grp_id].nclu)
+            elif method == "equal":
+                k = int(self._vq_npts / self.model.clu[grp_id].nclu)
                 n_vq = np.ones((self.model.clu[grp_id].nclu,)).astype(np.int32) * k
                 err = n_vq.sum() - self._vq_npts
                 n_vq[-1] -= err
-            assert(n_vq.sum()<=500)
+            assert n_vq.sum() <= 500
 
         for _clu_id in tqdm(self.model.clu[grp_id].index_id):
             km = MiniBatchKMeans(n_vq[_clu_id])
-            X = self.transformed_fet[grp_id][self.model.clu[grp_id].index[_clu_id]][:,:n_dim]   # Note: use transformed_fet rather than original model.fet
+            X = self.transformed_fet[grp_id][self.model.clu[grp_id].index[_clu_id]][
+                :, :n_dim
+            ]  # Note: use transformed_fet rather than original model.fet
             km.fit(X)
             vq.append(km.cluster_centers_)
 
-        self.vq['points'][grp_id] = np.vstack(vq)
-        self.vq['labels'][grp_id] = self._predict(grp_id, np.vstack(vq), n_dim)
-        self.vq['scores'][grp_id] = self._validate_vq(grp_id, n_dim)
-        info('group {}: accuracy:{}'.format(grp_id, self.vq['scores'][grp_id]))
-        assert(self.vq['labels'][grp_id].max() == self.model.clu[grp_id].nclu - 1)
+        self.vq["points"][grp_id] = np.vstack(vq)
+        self.vq["labels"][grp_id] = self._predict(grp_id, np.vstack(vq), n_dim)
+        self.vq["scores"][grp_id] = self._validate_vq(grp_id, n_dim)
+        info("group {}: accuracy:{}".format(grp_id, self.vq["scores"][grp_id]))
+        assert self.vq["labels"][grp_id].max() == self.model.clu[grp_id].nclu - 1
 
         if show:
             self.vq_view = scatter_3d_view()
             self.vq_view._size = 5
-            self.vq_view.set_data(self.vq['points'][grp_id], 
-                                  self.vq['labels'][grp_id])
+            self.vq_view.set_data(self.vq["points"][grp_id], self.vq["labels"][grp_id])
             self.vq_view.transparency = 0.9
             self.vq_view.show()
 
     @property
     def fpga_unique_labels(self):
         return self.fpga.unique_labels
-        
+
     def _validate_vq(self, grp_id, n_dim=4):
         from sklearn.neighbors import KNeighborsClassifier as KNN
+
         knn = KNN(n_neighbors=1)
-        knn.fit(self.vq['points'][grp_id], self.vq['labels'][grp_id])
-        _score = knn.score(self.transformed_fet[grp_id][:,:n_dim], self.model.clu[grp_id].membership)
+        knn.fit(self.vq["points"][grp_id], self.vq["labels"][grp_id])
+        _score = knn.score(
+            self.transformed_fet[grp_id][:, :n_dim], self.model.clu[grp_id].membership
+        )
         return _score
 
     def _predict(self, grp_id, vq_points, n_dim=4):
@@ -645,15 +759,17 @@ class controller(object):
         labels = np.asarray(list(self.model.kd.values()))[np.argmin(d, axis=0)]
         return labels
 
-    def set_vq(self, vq_method='proportional', status='done'):
-        # step 1: set FPGA transfomer and build vq 
-        if status == 'done':
+    def set_vq(self, vq_method="proportional", status="done"):
+        # step 1: set FPGA transfomer and build vq
+        if status == "done":
             status_id = 3
-        elif status == 'ready':
+        elif status == "ready":
             status_id = 2
 
-        for grp_id in range(self.prb.n_group):  # set_vq condition for a group: at least 500 spikes and in a `done` state
-            if self.model.clu_manager.state_list[grp_id]==status_id:
+        for grp_id in range(
+            self.prb.n_group
+        ):  # set_vq condition for a group: at least 500 spikes and in a `done` state
+            if self.model.clu_manager.state_list[grp_id] == status_id:
                 self.set_transformer(group_id=grp_id)
                 self.build_vq(grp_id=grp_id, show=False, method=vq_method)
             else:
@@ -663,54 +779,76 @@ class controller(object):
         self.global_label_lut = self.model.fet.assign_clu_global_labels()
 
         # step 3: set FPGA vq
-        for grpNo in tqdm(self.vq['points'].keys(), desc='compile to fpga'):
-            self.fpga.vq[grpNo]    = self.vq['points'][grpNo]
-            self.vq['fpga_labels'][grpNo] = np.vectorize(self.global_label_lut[grpNo].get)(self.vq['labels'][grpNo]) 
-            self.fpga.label[grpNo] = self.vq['fpga_labels'][grpNo]
+        for grpNo in tqdm(self.vq["points"].keys(), desc="compile to fpga"):
+            self.fpga.vq[grpNo] = self.vq["points"][grpNo]
+            self.vq["fpga_labels"][grpNo] = np.vectorize(
+                self.global_label_lut[grpNo].get
+            )(self.vq["labels"][grpNo])
+            self.fpga.label[grpNo] = self.vq["fpga_labels"][grpNo]
 
     def reset_vq(self):
-        # step 1: reset all vq dict 
+        # step 1: reset all vq dict
         self.vq = {}
-        self.vq['points'] = {}
-        self.vq['labels'] = {}
-        self.vq['fpga_labels'] = {}
-        self.vq['scores'] = {}
+        self.vq["points"] = {}
+        self.vq["labels"] = {}
+        self.vq["fpga_labels"] = {}
+        self.vq["scores"] = {}
         # step 2: reset FPGA label and vq to zero (actual FPGA parameter update)
         for grp_id in range(self.prb.n_group):
             self.fpga.label[grp_id] = np.zeros((500,))
-            self.fpga.vq[grp_id] = np.zeros((500,4))
+            self.fpga.vq[grp_id] = np.zeros((500, 4))
 
-    def compile(self, vq_method='proportional', status='done'):
-        '''
+    def compile(self, vq_method="proportional", status="done"):
+        """
         Download model parameters into the FPGA, and read back the downloaded parameters for a self-checking
         return False if self-checking is failed
         return True if self-checking is passed
-        '''
+        """
         self.reset_vq()
         self.set_vq(vq_method, status)
-        if status == 'done':
+        if status == "done":
             self.fpga.n_units = self.unit_done
-        elif status == 'ready':
+        elif status == "ready":
             self.fpga.n_units = self.unit_ready
-        print('FPGA is compiled')
+        print("FPGA is compiled")
         self.fpga.check()
 
-    def to_nbdec(self, spkdf='./spktag/kmeans_sort.pd', t_step=0.1, t_window=0.8, t_smooth=3, 
-                       tps=[0.5, 0.6, 0.7, 0.8]):
-        '''
+    def to_nbdec(
+        self,
+        spkdf="./spktag/kmeans_sort.pd",
+        t_step=0.1,
+        t_window=0.8,
+        t_smooth=3,
+        tps=[0.5, 0.6, 0.7, 0.8],
+    ):
+        """
         t_step: decoder update time step
         t_window: decoder time window
         t_smooth: noisy decoder output moving average length
         tps: training data percentage (for cross-validation)
-        '''
+        """
         self.model.pc.load_spkdf(spkdf)
         for tp in tps:
-            print(f'{tp*100}% training data')
-            _, score = self.model.pc.to_dec(t_step=t_step, t_window=t_window, t_smooth=t_smooth, verbose=True,
-                                            training_range=[0.0, tp], min_bit=0.1, min_peak_rate=1.5,
-                                            testing_range=[tp, 1.0])
-        print(f'100% training data')
-        dec, score = self.model.pc.to_dec(t_step=t_step, t_window=t_window, t_smooth=t_smooth, verbose=True,
-                                          training_range=[0.0, 1.0], min_bit=0.1, min_peak_rate=1.5,
-                                          testing_range=[0.0, 1.0])
+            print(f"{tp*100}% training data")
+            _, score = self.model.pc.to_dec(
+                t_step=t_step,
+                t_window=t_window,
+                t_smooth=t_smooth,
+                verbose=True,
+                training_range=[0.0, tp],
+                min_bit=0.1,
+                min_peak_rate=1.5,
+                testing_range=[tp, 1.0],
+            )
+        print(f"100% training data")
+        dec, score = self.model.pc.to_dec(
+            t_step=t_step,
+            t_window=t_window,
+            t_smooth=t_smooth,
+            verbose=True,
+            training_range=[0.0, 1.0],
+            min_bit=0.1,
+            min_peak_rate=1.5,
+            testing_range=[0.0, 1.0],
+        )
         return dec
